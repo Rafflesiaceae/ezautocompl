@@ -1,0 +1,166 @@
+---
+# cmd {{{1
+check priv key (.cmd .ssh): FILE=""; ssh-keygen -lf "$FILE"; ssh-keygen -yf "$FILE"
+
+# https://wiki.archlinux.org/index.php/SSH_keys#Ed25519
+create key (.cmd .ssh): ssh-keygen -o -t ed25519 -C "user@hostname"
+
+# https://superuser.com/a/692184
+create random text (.cmd): base64 /dev/urandom | head -c 1000000 > file.txt
+
+7zip extract archive into subdir (.cmd): "@TODO"
+
+restart (.win .cmd): shutdown -r -t 5
+
+# golang {{{1
+
+foreach line in string (.golang): |
+    scanner := bufio.NewScanner(strings.NewReader("some string"))
+    for scanner.Scan() {
+        fmt.Println(scanner.Text()) // Println will add back the final '\n'
+    }
+    if err := scanner.Err(); err != nil {
+        fmt.Fprintln(os.Stderr, "reading standard input:", err)
+    }
+
+write string to file (.golang): |
+    err := ioutil.WriteFile("/tmp/dat1", []byte("test"), 0644)
+    if err != nil {
+        panic(err)
+    }
+
+fetch from http (.golang): |
+    resp, err := http.Get(URL)
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    rawContents, err := ioutil.ReadAll(resp.Body)
+    if err != nil {
+        panic(err)
+    }
+
+    contents = string(rawContents)
+
+run and capture (.golang): |
+    cmd := exec.Command(cmdArg, args...)
+
+    var stdoutBuf, stderrBuf bytes.Buffer
+    cmd.Stdout = &stdoutBuf
+    cmd.Stderr = &stderrBuf
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+
+    err = cmd.Run()
+    if err != nil {
+        if exitError, ok := err.(*exec.ExitError); ok {
+            return string(stdoutBuf.Bytes()), string(stderrBuf.Bytes()), exitError.ExitCode()
+        }
+    }
+
+    outStr, errStr := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
+
+cli cobra (.golang): |
+    import (
+        "fmt"
+        "os"
+
+        "github.com/spf13/cobra"
+    )
+
+    var (
+        flagDebug bool
+    )
+
+    var rootCmd = &cobra.Command{
+        Use: "usher ...",
+        // Short: "",
+        Long: "",
+        Args: cobra.ExactArgs(1),
+        Run: func(cmd *cobra.Command, args []string) {
+            // @TODO
+        },
+    }
+
+    var subCmd = &cobra.Command{
+        Use: "exec [host]",
+        // Short: "",
+        // Long:  "",
+        Args: cobra.ExactArgs(1),
+        Run: func(cmd *cobra.Command, args []string) {
+            // @TODO
+        },
+    }
+
+    func init() {
+        rootCmd.AddCommand(subCmd)
+        rootCmd.PersistentFlags().BoolVar(&flagDebug, "debug", false, "Enable debug output")
+    }
+
+    func main() {
+        if err := rootCmd.Execute(); err != nil {
+            fmt.Println(err)
+            os.Exit(1)
+        }
+    }
+
+# bash {{{1
+
+# https://stackoverflow.com/a/35638712
+func is_nohup (.sh .bash): |
+    is_nohup() {
+        grep -Eq 'SigIgn:\s.{15}[13579bdf]' "/proc/$$/status" && return 0 || return 1
+    }
+
+die usage usage_and_die (.sh .bash): |
+    die() {
+        printf '%s\n' "$1" >&2
+        exit 1
+    }
+
+    usage() {
+        echo "usage: copypass|edituuid|forget|generate|verify [-cp|--copypass]"
+        exit 1
+    }
+
+    usage_and_die() {
+        printf '%s\n' "$1" >&2
+        usage
+    }
+
+foreach argument (.sh .bash): |
+    for var in "$@"; do
+        echo "$var"
+    done
+
+echo heredoc (.sh .bash): |
+    cat <<EOF
+    ...
+    EOF
+
+# https://mywiki.wooledge.org/BashFAQ/035
+parseargs argument parsing (.sh .bash): |
+    while :; do
+        case $1 in
+            -h|-\?|--help)
+                usage; exit ;;
+            -f|--file)
+                if [ "$2" ]; then
+                    file=$2
+                    shift
+                else
+                    die 'ERROR: "--file" requires a non-empty option argument.'
+                fi
+                ;;
+            --)
+                shift
+                break
+                ;;
+            -?*) printf 'WARN: Unknown option (ignored): %s\n' "$1" >&2 ;;
+            *) break ;;
+        esac
+
+        shift
+    done
+
