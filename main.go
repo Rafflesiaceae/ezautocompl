@@ -13,15 +13,13 @@ import (
 	pathlib "path"
 	"strings"
 
+	"github.com/atotto/clipboard"
 	yaml "gopkg.in/yaml.v2"
 )
 
 func copyToClipboard(val string) {
-	cmd := exec.Command("xclip", "-selection", "clipboard")
-
-	cmd.Stdin = strings.NewReader(val)
-
-	if err := cmd.Run(); err != nil {
+	err := clipboard.WriteAll(val)
+	if err != nil {
 		panic(err)
 	}
 }
