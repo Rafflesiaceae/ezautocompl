@@ -18,6 +18,11 @@ import (
 )
 
 func copyToClipboard(val string) {
+	// dont copy empty strings
+	if strings.TrimSpace(val) == "" {
+		return
+	}
+
 	err := clipboard.WriteAll(val)
 	if err != nil {
 		panic(err)
