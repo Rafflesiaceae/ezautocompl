@@ -1,5 +1,5 @@
 #NoTrayIcon
 
 #u::
-Run %A_Desktop%\ezautocompl.lnk
+Run %A_MyDocuments%\ezautocompl.lnk, OutputVarPID
 return
