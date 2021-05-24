@@ -30,6 +30,7 @@ func copyToClipboard(val string) {
 }
 
 func main() {
+	var err error
 	var ( // flags
 		url   string
 		path  string
@@ -41,41 +42,37 @@ func main() {
 	flag.BoolVar(&bench, "bench", false, "print time spent to stderr")
 	flag.Parse()
 
-	// var start Time
-
-	// if bench {
-	// 	start = time.Now()
-	// }
-
 	var rawContents []byte
-	if path != "" { // read from file
-		var err error
+	{ // read rawContents
+		if path != "" { // read from file
+			rawContents, err = ioutil.ReadFile(path)
+			if err != nil {
+				panic(err)
+			}
+		} else if url != "" { // fetch from http
+			resp, err := http.Get(url)
+			if err != nil {
+				panic(err)
+			}
+			defer resp.Body.Close()
 
-		rawContents, err = ioutil.ReadFile(path)
-		if err != nil {
-			panic(err)
+			rawContents, err = ioutil.ReadAll(resp.Body)
+			if err != nil {
+				panic(err)
+			}
+		} else {
+			rawContents, err = ioutil.ReadAll(os.Stdin)
+			if err != nil {
+				panic(err)
+			}
+
 		}
-	} else { // fetch from http
-		var err error
-
-		resp, err := http.Get(url)
-		if err != nil {
-			panic(err)
-		}
-		defer resp.Body.Close()
-
-		rawContents, err = ioutil.ReadAll(resp.Body)
-		if err != nil {
-			panic(err)
-		}
-
 	}
 
 	contents := make(map[string]interface{})
-	{ // parse yaml
-		if err := yaml.Unmarshal(rawContents, &contents); err != nil {
-			panic(err)
-		}
+	// parse yaml
+	if err := yaml.Unmarshal(rawContents, &contents); err != nil {
+		panic(err)
 	}
 
 	var contentsKeys []string
@@ -88,10 +85,6 @@ func main() {
 			i++
 		}
 	}
-
-	// if bench {
-	// 	since
-	// }
 
 	var key string
 	{ // fzf - prompt for key
@@ -124,21 +117,22 @@ func main() {
 		key = strings.TrimSpace(key)
 	}
 
-	val := contents[key]
-	switch t := val.(type) {
+	aval := contents[key]
+	switch t := aval.(type) {
 	case map[interface{}]interface{}:
 		{ // run cmd
-			ival := val.(map[interface{}]interface{})
 			val := make(map[string]interface{})
-			for k, v := range ival {
-				k2 := k.(string)
-				val[k2] = v
+			{ // cast into val
+				ival := aval.(map[interface{}]interface{})
+				for k, v := range ival {
+					k2 := k.(string)
+					val[k2] = v
+				}
 			}
-			// fmt.Printf("LOL%v\n", val)
 
+			// load yaml contents
 			var cmds []string
 			if s, ok := val["cmd"].(string); ok {
-				// cmds = make([]string, 1)
 				cmds = append(cmds, s)
 			} else if rs, ok := val["cmd"].([]interface{}); ok {
 				for _, v := range rs {
@@ -153,36 +147,55 @@ func main() {
 				stdin = val.(string)
 			}
 
+			var dontcopy bool
+			if val, ok := val["copy-to-clipboard"]; ok {
+				dontcopy = val == false
+			}
+
 			{ // run command
 				cmd := exec.Command(cmds[0], cmds[1:]...)
 
-				var stdoutBuf, stderrBuf bytes.Buffer
-				cmd.Stdout = &stdoutBuf
-				cmd.Stderr = &stderrBuf
+				if dontcopy {
+					cmd.Stdout = nil
+					cmd.Stderr = nil
 
-				if stdin != "" {
-					cmd.Stdin = strings.NewReader(stdin)
-				}
-
-				err := cmd.Run()
-				if err != nil {
-					if exitError, ok := err.(*exec.ExitError); ok {
-						log.Fatalf("cmd %v returned %d with error:\nstdout: %s\nstderr: %s",
-							cmds,
-							exitError.ExitCode(),
-							string(stdoutBuf.Bytes()),
-							string(stderrBuf.Bytes()))
+					err = cmd.Start()
+					if err != nil {
+						panic(err)
 					}
-				}
 
-				outStr, _ := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
-				copyToClipboard(outStr)
+					err = cmd.Process.Release()
+					if err != nil {
+						panic(err)
+					}
+				} else {
+					var stdoutBuf, stderrBuf bytes.Buffer
+					cmd.Stdout = &stdoutBuf
+					cmd.Stderr = &stderrBuf
+
+					if stdin != "" {
+						cmd.Stdin = strings.NewReader(stdin)
+					}
+
+					err := cmd.Run()
+					if err != nil {
+						if exitError, ok := err.(*exec.ExitError); ok {
+							log.Fatalf("cmd %v returned %d with error:\nstdout: %s\nstderr: %s",
+								cmds,
+								exitError.ExitCode(),
+								string(stdoutBuf.Bytes()),
+								string(stderrBuf.Bytes()))
+						}
+					}
+
+					outStr, _ := string(stdoutBuf.Bytes()), string(stderrBuf.Bytes())
+					copyToClipboard(outStr)
+				}
 			}
 		}
 	case string:
-		copyToClipboard(val.(string))
+		copyToClipboard(aval.(string))
 	default:
 		fmt.Printf("unexpected type %T\n", t)
 	}
-
 }
