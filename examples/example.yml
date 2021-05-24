@@ -1,5 +1,11 @@
 ---
 # cmd {{{1
+start a http server (.cmd):
+    cmd: bash
+    stdin: |
+      random_digit() { grep -m1 -ao '[0-9]' /dev/urandom | sed s/0/9/ | head -n1; }
+      printf "npx --no-install http-server -p 80%s%s -a 127.0.0.1 ." "$(random_digit)" "$(random_digit)"
+
 check priv key (.cmd .ssh): FILE=""; ssh-keygen -lf "$FILE"; ssh-keygen -yf "$FILE"
 
 # https://wiki.archlinux.org/index.php/SSH_keys#Ed25519
