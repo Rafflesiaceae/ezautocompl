@@ -12,6 +12,7 @@ import (
 	"os/user"
 	pathlib "path"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	yaml "gopkg.in/yaml.v2"
@@ -159,6 +160,12 @@ func main() {
 					cmd.Stdout = nil
 					cmd.Stderr = nil
 
+					var stdinReader *strings.Reader
+					if stdin != "" {
+						stdinReader = strings.NewReader(stdin)
+						cmd.Stdin = stdinReader
+					}
+
 					err = cmd.Start()
 					if err != nil {
 						panic(err)
@@ -167,6 +174,17 @@ func main() {
 					err = cmd.Process.Release()
 					if err != nil {
 						panic(err)
+					}
+
+					if stdinReader != nil {
+						// wait for stdin to be read
+						for {
+							if stdinReader.Len() <= 0 {
+								break
+							} else {
+								time.Sleep(50 * time.Millisecond)
+							}
+						}
 					}
 				} else {
 					var stdoutBuf, stderrBuf bytes.Buffer
